@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TrueNests Member Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f7f9;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 420px;
+      margin: 80px auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 25px;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      background: #1f6fff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .success {
+      color: green;
+    }
+
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>TrueNests Login</h1>
+
+    <label for="phone">Phone Number</label>
+    <input id="phone" type="tel" placeholder="Digits only" />
+
+    <label for="email">Email</label>
+    <input id="email" type="email" placeholder="you@email.com" />
+
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="Password" />
+
+    <button id="loginBtn" onclick="login()">Login</button>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const API_BASE = "https://truenests-backend-api-v2-243425441444.us-east1.run.app";
+
+    async function login() {
+      const phone = document.getElementById("phone").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      const statusEl = document.getElementById("status");
+      const btn = document.getElementById("loginBtn");
+
+      statusEl.textContent = "Logging in...";
+      statusEl.className = "status";
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_BASE}/member-login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            phone,
+            email,
+            password
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "Login failed");
+        }
+
+        statusEl.textContent = `Hello ${data.firstName || "Member"}!`;
+        statusEl.className = "status success";
+
+      } catch (err) {
+        statusEl.textContent = err.message || "No response from server";
+        statusEl.className = "status error";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+
+</body>
+</html>
