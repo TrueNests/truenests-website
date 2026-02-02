@@ -5,95 +5,107 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>TrueNests Member Login</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #f7f7f7; }
-    .card { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 8px 20px rgba(0,0,0,.08); }
-    h1 { margin: 0 0 8px; font-size: 22px; }
-    p { margin: 0 0 18px; color: #444; }
-    label { display:block; margin: 12px 0 6px; font-size: 14px; color:#222; }
-    input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 10px; font-size: 16px; box-sizing: border-box; }
-    button { width: 100%; margin-top: 14px; padding: 12px; border: 0; border-radius: 10px; font-size: 16px; cursor: pointer; }
-    button:disabled { opacity: .7; cursor: not-allowed; }
-    .status { margin-top: 14px; padding: 12px; border-radius: 10px; background: #f1f1f1; font-size: 14px; white-space: pre-wrap; }
-    .ok { background: #e7f7ea; }
-    .err { background: #fde8e8; }
-    .small { font-size: 12px; color: #666; margin-top: 10px; }
+    :root { --bg:#f6f7f9; --card:#fff; --text:#111; --muted:#666; --border:#d8dbe0; }
+    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    .wrap{ max-width:520px; margin:48px auto; padding:0 16px; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 12px 28px rgba(0,0,0,.06); }
+    h1{ margin:0 0 6px; font-size:22px; }
+    p{ margin:0 0 18px; color:var(--muted); font-size:14px; line-height:1.4; }
+    label{ display:block; margin:12px 0 6px; font-size:13px; color:#222; }
+    input{ width:100%; box-sizing:border-box; padding:12px; border:1px solid var(--border); border-radius:12px; font-size:16px; outline:none; }
+    input:focus{ border-color:#b6bac2; }
+    button{ width:100%; margin-top:16px; padding:12px; border:0; border-radius:12px; font-size:16px; cursor:pointer; }
+    button:disabled{ opacity:.65; cursor:not-allowed; }
+    .msg{ margin-top:14px; padding:12px; border-radius:12px; font-size:14px; display:none; white-space:pre-wrap; }
+    .ok{ display:block; background:#e9f7ee; }
+    .err{ display:block; background:#fdeaea; }
+    .subtle{ margin-top:12px; font-size:12px; color:var(--muted); }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Member Login</h1>
-    <p>Enter your phone, email, and password.</p>
+  <div class="wrap">
+    <div class="card">
+      <h1>Member Login</h1>
+      <p>Enter your phone number, email, and password to access your TrueNests account.</p>
 
-    <label for="phone">Phone</label>
-    <input id="phone" inputmode="numeric" placeholder="Digits only" />
+      <label for="phone">Phone</label>
+      <input id="phone" inputmode="numeric" autocomplete="tel" placeholder="Digits only" />
 
-    <label for="email">Email</label>
-    <input id="email" type="email" placeholder="name@email.com" />
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="name@email.com" />
 
-    <label for="password">Password</label>
-    <input id="password" type="password" placeholder="••••••••" />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
 
-    <button id="loginBtn">Login</button>
+      <button id="loginBtn">Login</button>
 
-    <div id="status" class="status">Status: ready</div>
+      <div id="msg" class="msg"></div>
 
-    <div class="small">
-      Backend: <span id="backendUrl"></span>
+      <div class="subtle" id="hint"></div>
     </div>
   </div>
 
   <script>
-    // ✅ Make sure this points to your Cloud Run service
+    // Cloud Run backend (member login API)
     const BACKEND_BASE = "https://truenests-backend-api-v2-243425441444.us-east1.run.app";
-    document.getElementById("backendUrl").textContent = BACKEND_BASE;
 
-    const statusEl = document.getElementById("status");
     const btn = document.getElementById("loginBtn");
+    const msg = document.getElementById("msg");
+    const hint = document.getElementById("hint");
 
-    function setStatus(msg, kind) {
-      statusEl.textContent = msg;
-      statusEl.className = "status " + (kind || "");
+    function digitsOnly(s){ return (s||"").toString().replace(/\D/g,""); }
+
+    function show(kind, text){
+      msg.className = "msg " + kind;
+      msg.textContent = text;
+      msg.style.display = "block";
     }
 
-    function digitsOnly(s) {
-      return (s || "").toString().replace(/\D/g, "");
+    function clearMsg(){
+      msg.style.display = "none";
+      msg.textContent = "";
+      msg.className = "msg";
     }
 
     btn.addEventListener("click", async () => {
+      clearMsg();
+
       const phone = digitsOnly(document.getElementById("phone").value);
       const email = (document.getElementById("email").value || "").trim();
       const password = document.getElementById("password").value || "";
 
+      if (!phone || phone.length < 10) return show("err","Please enter a valid phone number.");
+      if (!email) return show("err","Please enter your email.");
+      if (!password) return show("err","Please enter your password.");
+
       btn.disabled = true;
-      setStatus("Logging in...", "");
+      btn.textContent = "Logging in...";
 
       try {
         const resp = await fetch(BACKEND_BASE + "/memberLogin", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type":"application/json" },
           body: JSON.stringify({ phone, email, password })
         });
 
-        // Try to parse JSON no matter what
         let data = null;
-        try { data = await resp.json(); } catch (e) {}
+        try { data = await resp.json(); } catch(e) {}
 
-        if (!resp.ok) {
-          const msg = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + resp.status);
-          setStatus("Login failed: " + msg, "err");
-          return;
+        if (!resp.ok || !data) {
+          return show("err", "Login failed. Please try again.");
         }
 
-        if (data && data.ok) {
-          setStatus("Hello " + (data.firstName || "") + "!\n" + "guestId: " + (data.guestId || ""), "ok");
+        if (data.ok) {
+          show("ok", `Hello ${data.firstName || ""}!\n\nguestId: ${data.guestId || ""}`);
+          hint.textContent = "";
         } else {
-          setStatus("Login failed: " + (data && data.error ? data.error : "Unknown error"), "err");
+          show("err", "Login failed. Please check your info and try again.");
         }
-
-      } catch (err) {
-        setStatus("Load failed (could not reach backend).", "err");
+      } catch (e) {
+        show("err", "Login failed. Please try again.");
       } finally {
         btn.disabled = false;
+        btn.textContent = "Login";
       }
     });
   </script>
