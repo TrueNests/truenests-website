@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TrueNests Member Login</title>
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --text:#111; --muted:#666; --border:#d8dbe0; }
+    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    .wrap{ max-width:520px; margin:48px auto; padding:0 16px; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 12px 28px rgba(0,0,0,.06); }
+    h1{ margin:0 0 6px; font-size:22px; }
+    p{ margin:0 0 18px; color:var(--muted); font-size:14px; line-height:1.4; }
+    label{ display:block; margin:12px 0 6px; font-size:13px; color:#222; }
+    input{ width:100%; box-sizing:border-box; padding:12px; border:1px solid var(--border); border-radius:12px; font-size:16px; outline:none; }
+    input:focus{ border-color:#b6bac2; }
+    button{ width:100%; margin-top:16px; padding:12px; border:0; border-radius:12px; font-size:16px; cursor:pointer; }
+    button:disabled{ opacity:.65; cursor:not-allowed; }
+    .msg{ margin-top:14px; padding:12px; border-radius:12px; font-size:14px; display:none; white-space:pre-wrap; }
+    .ok{ display:block; background:#e9f7ee; }
+    .err{ display:block; background:#fdeaea; }
+    .subtle{ margin-top:12px; font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Member Login</h1>
+      <p>Enter your phone number, email, and password to access your TrueNests account.</p>
+
+      <label for="phone">Phone</label>
+      <input id="phone" inputmode="numeric" autocomplete="tel" placeholder="Digits only" />
+
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="name@email.com" />
+
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+
+      <button id="loginBtn">Login</button>
+
+      <div id="msg" class="msg"></div>
+
+      <div class="subtle" id="hint"></div>
+    </div>
+  </div>
+
+  <script>
+    // Cloud Run backend (member login API)
+    const BACKEND_BASE = "https://truenests-backend-api-v2-243425441444.us-east1.run.app";
+
+    const btn = document.getElementById("loginBtn");
+    const msg = document.getElementById("msg");
+    const hint = document.getElementById("hint");
+
+    function digitsOnly(s){ return (s||"").toString().replace(/\D/g,""); }
+
+    function show(kind, text){
+      msg.className = "msg " + kind;
+      msg.textContent = text;
+      msg.style.display = "block";
+    }
+
+    function clearMsg(){
+      msg.style.display = "none";
+      msg.textContent = "";
+      msg.className = "msg";
+    }
+
+    btn.addEventListener("click", async () => {
+      clearMsg();
+
+      const phone = digitsOnly(document.getElementById("phone").value);
+      const email = (document.getElementById("email").value || "").trim();
+      const password = document.getElementById("password").value || "";
+
+      if (!phone || phone.length < 10) return show("err","Please enter a valid phone number.");
+      if (!email) return show("err","Please enter your email.");
+      if (!password) return show("err","Please enter your password.");
+
+      btn.disabled = true;
+      btn.textContent = "Logging in...";
+
+      try {
+        const resp = await fetch(BACKEND_BASE + "/memberLogin", {
+          method: "POST",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify({ phone, email, password })
+        });
+
+        let data = null;
+        try { data = await resp.json(); } catch(e) {}
+
+        if (!resp.ok || !data) {
+          return show("err", "Login failed. Please try again.");
+        }
+
+        if (data.ok) {
+          show("ok", `Hello ${data.firstName || ""}!\n\nguestId: ${data.guestId || ""}`);
+          hint.textContent = "";
+        } else {
+          show("err", "Login failed. Please check your info and try again.");
+        }
+      } catch (e) {
+        show("err", "Login failed. Please try again.");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Login";
+      }
+    });
+  </script>
+</body>
+</html>
