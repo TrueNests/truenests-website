@@ -16,10 +16,15 @@
     input:focus{ border-color:#b6bac2; }
     button{ width:100%; margin-top:16px; padding:12px; border:0; border-radius:12px; font-size:16px; cursor:pointer; }
     button:disabled{ opacity:.65; cursor:not-allowed; }
+
     .msg{ margin-top:14px; padding:12px; border-radius:12px; font-size:14px; display:none; white-space:pre-wrap; }
     .ok{ display:block; background:#e9f7ee; }
     .err{ display:block; background:#fdeaea; }
     .subtle{ margin-top:12px; font-size:12px; color:var(--muted); }
+
+    /* Debug box is only shown when there is an error */
+    .debug{ margin-top:10px; padding:10px; border:1px dashed var(--border); border-radius:12px; display:none; background:#fff; }
+    .debug pre{ margin:0; font-size:12px; white-space:pre-wrap; word-break:break-word; color:#333; }
   </style>
 </head>
 <body>
@@ -41,6 +46,11 @@
 
       <div id="msg" class="msg"></div>
 
+      <!-- Only shows on error -->
+      <div id="debug" class="debug">
+        <pre id="debugText"></pre>
+      </div>
+
       <div class="subtle" id="hint"></div>
     </div>
   </div>
@@ -52,6 +62,8 @@
     const btn = document.getElementById("loginBtn");
     const msg = document.getElementById("msg");
     const hint = document.getElementById("hint");
+    const debugBox = document.getElementById("debug");
+    const debugText = document.getElementById("debugText");
 
     function digitsOnly(s){ return (s||"").toString().replace(/\D/g,""); }
 
@@ -61,10 +73,22 @@
       msg.style.display = "block";
     }
 
+    function hideDebug(){
+      debugBox.style.display = "none";
+      debugText.textContent = "";
+    }
+
+    function showDebug(text){
+      debugText.textContent = text;
+      debugBox.style.display = "block";
+    }
+
     function clearMsg(){
       msg.style.display = "none";
       msg.textContent = "";
       msg.className = "msg";
+      hint.textContent = "";
+      hideDebug();
     }
 
     btn.addEventListener("click", async () => {
@@ -88,21 +112,48 @@
           body: JSON.stringify({ phone, email, password })
         });
 
+        const contentType = resp.headers.get("content-type") || "";
+        let raw = "";
         let data = null;
-        try { data = await resp.json(); } catch(e) {}
 
-        if (!resp.ok || !data) {
-          return show("err", "Login failed. Please try again.");
+        try {
+          raw = await resp.text();
+          if (contentType.includes("application/json")) {
+            try { data = JSON.parse(raw); } catch(e) { /* keep raw */ }
+          }
+        } catch(e) {
+          // ignore
+        }
+
+        if (!resp.ok) {
+          const serverMsg =
+            (data && (data.error || data.message)) ? (data.error || data.message) :
+            raw ? raw :
+            "No response body";
+          show("err", "Login failed.");
+          showDebug(
+            "HTTP " + resp.status + " " + resp.statusText + "\n\n" +
+            "Backend message:\n" + serverMsg
+          );
+          return;
+        }
+
+        if (!data) {
+          show("err", "Login failed.");
+          showDebug("Backend returned non-JSON response:\n\n" + (raw || "(empty)"));
+          return;
         }
 
         if (data.ok) {
           show("ok", `Hello ${data.firstName || ""}!\n\nguestId: ${data.guestId || ""}`);
-          hint.textContent = "";
+          hideDebug();
         } else {
-          show("err", "Login failed. Please check your info and try again.");
+          show("err", "Login failed.");
+          showDebug("Backend response:\n\n" + JSON.stringify(data, null, 2));
         }
       } catch (e) {
-        show("err", "Login failed. Please try again.");
+        show("err", "Login failed.");
+        showDebug("Network/Fetch error:\n\n" + (e && e.message ? e.message : String(e)));
       } finally {
         btn.disabled = false;
         btn.textContent = "Login";
