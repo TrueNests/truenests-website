@@ -1,143 +1,101 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>TrueNests Member Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f6f7f9;
-      margin: 0;
-      padding: 0;
-    }
-
-    .container {
-      max-width: 420px;
-      margin: 80px auto;
-      background: #ffffff;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 25px;
-    }
-
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
-
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 6px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-    }
-
-    button {
-      width: 100%;
-      margin-top: 25px;
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 6px;
-      border: none;
-      background: #1f6fff;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      background: #999;
-      cursor: not-allowed;
-    }
-
-    .status {
-      margin-top: 20px;
-      text-align: center;
-      font-weight: bold;
-    }
-
-    .success {
-      color: green;
-    }
-
-    .error {
-      color: red;
-    }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #f7f7f7; }
+    .card { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 8px 20px rgba(0,0,0,.08); }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0 0 18px; color: #444; }
+    label { display:block; margin: 12px 0 6px; font-size: 14px; color:#222; }
+    input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 10px; font-size: 16px; box-sizing: border-box; }
+    button { width: 100%; margin-top: 14px; padding: 12px; border: 0; border-radius: 10px; font-size: 16px; cursor: pointer; }
+    button:disabled { opacity: .7; cursor: not-allowed; }
+    .status { margin-top: 14px; padding: 12px; border-radius: 10px; background: #f1f1f1; font-size: 14px; white-space: pre-wrap; }
+    .ok { background: #e7f7ea; }
+    .err { background: #fde8e8; }
+    .small { font-size: 12px; color: #666; margin-top: 10px; }
   </style>
 </head>
 <body>
+  <div class="card">
+    <h1>Member Login</h1>
+    <p>Enter your phone, email, and password.</p>
 
-  <div class="container">
-    <h1>TrueNests Login</h1>
-
-    <label for="phone">Phone Number</label>
-    <input id="phone" type="tel" placeholder="Digits only" />
+    <label for="phone">Phone</label>
+    <input id="phone" inputmode="numeric" placeholder="Digits only" />
 
     <label for="email">Email</label>
-    <input id="email" type="email" placeholder="you@email.com" />
+    <input id="email" type="email" placeholder="name@email.com" />
 
     <label for="password">Password</label>
-    <input id="password" type="password" placeholder="Password" />
+    <input id="password" type="password" placeholder="••••••••" />
 
-    <button id="loginBtn" onclick="login()">Login</button>
+    <button id="loginBtn">Login</button>
 
-    <div id="status" class="status"></div>
+    <div id="status" class="status">Status: ready</div>
+
+    <div class="small">
+      Backend: <span id="backendUrl"></span>
+    </div>
   </div>
 
   <script>
-    const API_BASE = "https://truenests-backend-api-v2-243425441444.us-east1.run.app";
+    // ✅ Make sure this points to your Cloud Run service
+    const BACKEND_BASE = "https://truenests-backend-api-v2-243425441444.us-east1.run.app";
+    document.getElementById("backendUrl").textContent = BACKEND_BASE;
 
-    async function login() {
-      const phone = document.getElementById("phone").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
+    const statusEl = document.getElementById("status");
+    const btn = document.getElementById("loginBtn");
 
-      const statusEl = document.getElementById("status");
-      const btn = document.getElementById("loginBtn");
+    function setStatus(msg, kind) {
+      statusEl.textContent = msg;
+      statusEl.className = "status " + (kind || "");
+    }
 
-      statusEl.textContent = "Logging in...";
-      statusEl.className = "status";
+    function digitsOnly(s) {
+      return (s || "").toString().replace(/\D/g, "");
+    }
+
+    btn.addEventListener("click", async () => {
+      const phone = digitsOnly(document.getElementById("phone").value);
+      const email = (document.getElementById("email").value || "").trim();
+      const password = document.getElementById("password").value || "";
+
       btn.disabled = true;
+      setStatus("Logging in...", "");
 
       try {
-        const response = await fetch(`${API_BASE}/member-login`, {
+        const resp = await fetch(BACKEND_BASE + "/memberLogin", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            phone,
-            email,
-            password
-          })
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, email, password })
         });
 
-        const data = await response.json();
+        // Try to parse JSON no matter what
+        let data = null;
+        try { data = await resp.json(); } catch (e) {}
 
-        if (!response.ok || !data.ok) {
-          throw new Error(data.error || "Login failed");
+        if (!resp.ok) {
+          const msg = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + resp.status);
+          setStatus("Login failed: " + msg, "err");
+          return;
         }
 
-        statusEl.textContent = `Hello ${data.firstName || "Member"}!`;
-        statusEl.className = "status success";
+        if (data && data.ok) {
+          setStatus("Hello " + (data.firstName || "") + "!\n" + "guestId: " + (data.guestId || ""), "ok");
+        } else {
+          setStatus("Login failed: " + (data && data.error ? data.error : "Unknown error"), "err");
+        }
 
       } catch (err) {
-        statusEl.textContent = err.message || "No response from server";
-        statusEl.className = "status error";
+        setStatus("Load failed (could not reach backend).", "err");
       } finally {
         btn.disabled = false;
       }
-    }
+    });
   </script>
-
 </body>
 </html>
